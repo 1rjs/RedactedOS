@@ -1,11 +1,13 @@
 #pragma once
 
 #include "utils/console.hpp"
+#include "shell/shell.h"
 
 class Terminal: public Console {
 public:
     Terminal();
     void update();
+    shell_handle *current_shell;
 protected:
     bool handle_input();
     void repeat_tick();
@@ -23,6 +25,8 @@ protected:
     draw_ctx* get_ctx() override;
     void flush(draw_ctx *ctx) override;
     bool screen_ready() override;
+
+    shell_handle* create_shell();
 
     bool command_running;
 

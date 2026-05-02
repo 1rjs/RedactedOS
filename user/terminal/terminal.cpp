@@ -2,8 +2,17 @@
 #include "alloc/allocate.h"
 #include "std/std.h"
 #include "input_keycodes.h"
+#include "shell/sheldon/sheldon.h"
+
+Terminal *default_term;
+
+void term_put_slice(shell_handle *handle, string_slice slice){
+    if (!default_term || (default_term->current_shell && default_term->current_shell != handle)) return;
+    default_term->put_slice(slice);
+}
 
 Terminal::Terminal() : Console() {
+    default_term = this;
     uint32_t color_buf[2] = {};
     sreadf("/theme", &color_buf, sizeof(uint64_t));
     default_bg_color = color_buf[0];
@@ -33,12 +42,19 @@ Terminal::Terminal() : Console() {
 
     dirty = false;
 
+    current_shell = create_shell();
     put_string("> ");
     redraw_input_line();
     if (dirty) {
         flush(dctx);
         dirty = false;
     }
+}
+
+shell_handle* Terminal::create_shell(){
+    return create_sheldon((shell_bindings){
+        .console_output = term_put_slice,
+    });
 }
 
 void Terminal::update(){
@@ -166,6 +182,10 @@ void Terminal::end_command(){
 }
 
 bool Terminal::exec_cmd(const char *cmd){
+    if (!current_shell) return false;
+
+    if (run_cmd(current_shell, slice_from_literal(cmd))) return true;
+    
     int32_t proc = system_focus(cmd, EXEC_MODE_KEEP_FOCUS);
     if (!proc) return false;
 
@@ -247,7 +267,6 @@ void Terminal::run_command(){
         const char *next = seek_to(fullcmd, ' ');
         size_t len = next - fullcmd - (next && *(next-1) == ' ' ? 1 : 0);
         string_slice cmd = (string_slice){ .data = (char*)fullcmd, .length = len };
-        print("Detected as %v| %x %i",cmd,*next,len);
         if (slice_lit_match(cmd, "exit", true) || slice_lit_match(cmd, "q", true)){
             halt(0);
         } else {
